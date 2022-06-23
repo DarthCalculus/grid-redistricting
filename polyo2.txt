@@ -1,0 +1,440 @@
+
+printf(" We consider the number of ways to partition the n by k grid into connected regions.\n\n ") :
+printf(" transition_matrix(n, parts) constructs a matrix. "):
+printf(" n specifies the number of rows, and parts specifies the number of regions."):
+printf(" The [1,2] entry of the (k+1)th power of the matrix gives a polynomial in several variables."):
+printf(" The coefficient of z[1]^t1 * z[2]^t2 * ... * z[parts]^tparts in that polynomial"):
+printf(" gives the number of ways to partition the n by k grid into connected regions, such that region 1 has area t1, etc."):
+
+printf(" To make the regions indistinguishable, you may need to divide the coefficient by (parts)!. "):
+
+
+start_state := proc(n,st)
+	local i,used,used2:
+	
+	used := {st[2][1]}:
+	used2 := {st[1][1]}:
+	
+	for i from 2 to n do
+		if st[2][i] = st[2][i-1] then
+			next:
+		fi:
+		if st[2][i] in used then
+			return(false):
+		fi:
+		used := used union {st[2][i]}:
+		used2 := used2 union {st[1][i]}:
+	od:
+	
+	for i from 1 to nops(st[4]) do
+		if st[4][i] = 1 and not( i in used2) then
+			return(false):
+		fi:
+	od:
+
+	true:
+
+end:
+
+end_state := proc(n,st)
+	local i,used,used2:
+	
+	for i from 1 to nops(st[4]) do
+		if st[4][i] = 0 then
+			return(false):
+		fi:
+	od:
+	
+	used := {}:
+	used2 := {}:
+	
+	for i from 1 to n do
+		used := used union {st[2][i]}:
+		used2 := used2 union {st[1][i]}:
+	od:
+
+	return evalb( nops(used) = nops(used2)):	
+end:
+
+
+
+
+gen_states := proc(rows, parts)
+	local r,i,s,S,r1,j,spl,k:
+	
+	i := 1:
+	S := sym(rows, parts):
+
+	for s in S do
+		
+		r1 := [rechelp(s,[],[],[],{},1,1)]:
+		
+		for j from 1 to nops(r1) do
+			
+			spl := [split(r1[j],parts)]:
+			
+			for k from 1 to nops(spl) do
+				r[i] := spl[k]:
+				i := i+1:
+			od:
+		od:
+		
+	od:
+	[seq(r[k],k=1..i-1)]:
+end:
+
+split := proc(state,parts)
+	#print(state):
+	local notused,k,It,T,t,b,c,q,ret:
+
+	ret := ():
+	notused := {seq(p,p=1..parts)}:
+	for k from 1 to nops(state[3]) do
+		notused := notused minus {state[3][k]}:
+	od:
+	if nops(notused) = 0 then
+		return ([op(state),[1$parts]]):
+	fi:
+	It:=Iterator:-CartesianProduct(seq([0,1],i=1..nops(notused))):
+	T := [seq(convert(v[],list),v=It)]:
+	for t in T do
+		b := ():
+		c := 1:
+		for q from 1 to parts do 
+			if q in notused then
+				b := b,t[c]:
+				c := c+1:
+			else 
+				b := b,1:
+			fi:
+		
+		od:
+		ret := ret, [op(state),[b]]:
+	od:
+	ret:
+end:
+
+
+
+sym := proc( rows, parts)
+	
+	local It:
+	
+	It:=Iterator:-CartesianProduct(seq([seq(j,j=1..parts)],i=1..rows)):
+	[seq(convert(v[],list),v=It)]:
+
+end:
+
+
+rechelp := proc(s1, sofar, labels, stack, dead, nextc, d)
+	local r,o,j,newdead:
+
+
+	r := NULL:
+
+	if d > nops(s1) then 
+		return ([s1,sofar,labels]):
+	fi:
+
+	
+	if (d>1) and (s1[d] = s1[d-1]) then
+		return( rechelp(s1, [op(sofar),sofar[d-1]], labels,stack,dead,nextc, d+1)):
+	fi:
+	
+	for o from 1 to nextc -1 do
+		if (o in dead) or (labels[o] <> s1[d]) then
+			next:
+		fi:
+		
+		j := ListTools:-Search(o,stack):	
+
+		newdead := dead union {op((j+1)..nops(stack),stack)}:
+
+		r := r , rechelp(s1, [op(sofar),o], labels, [op(1..j,stack)], newdead, nextc, d+1):
+	
+	od:
+	
+	r := r , rechelp(s1, [op(sofar),nextc], [op(labels),s1[d]], [op(stack),nextc], dead, nextc+1, d+1):
+	
+	
+	r:
+	
+end:
+
+
+weight := proc(sym)
+
+	mul(z[i]^ListTools:-Occurrences(i,sym), i=1..max(sym)):
+
+end:
+
+
+oksetmake := proc(st,sy)
+	local okset,a:
+	
+	okset := {}:
+	for a from 1 to nops(sy) do 
+		if st[1][a] = sy[a] then
+			okset := okset union {st[2][a]}:
+		fi:
+	od:
+	okset:
+
+end:
+
+
+verif1 := proc(st,sy,parts)
+	local p:
+	for p from 1 to parts do
+		if ( (st[4][p] = 1) and not(p in st[3])) and p in sy then
+			return(false):
+		fi:
+	od:
+	true:
+end:
+
+
+verif2 := proc(st,sy,p,okset)
+	local a,b1,b3,b4:
+	b1 := false:
+	b3 := false:
+	b4 := evalb(p in sy):
+	#if b4 and ( (st[4][p] = 1) and not(p in st[3])) then
+	#		return(false):
+	#fi:
+	for a from 1 to nops(st[3]) do
+		if st[3][a] = p then
+			if b1 then
+				if b3 then
+					return(false):
+				fi:
+				b4 := true:
+			else 
+				b1 := true:
+			fi:
+			if not( a in okset) then
+				if b4 then 
+					return(false):
+				fi:
+				b3 := true:
+			fi:
+		fi:
+	od:
+	true:
+end:
+
+check_trans := proc (n, parts, st, sy)
+	local okset,p,locs,b1,b3,b4,a:
+
+	#if not(verif1(st,sy,parts))  then
+	#	return (false):
+	#fi:
+	
+	for p from 1 to parts do
+		if ( (st[4][p] = 1) and not(p in st[3])) and p in sy then
+			return(false):
+		fi:
+	od:
+	
+	
+	#okset := oksetmake(st,sy):
+	
+	okset := {}:
+	for a from 1 to nops(sy) do 
+		if st[1][a] = sy[a] then
+			okset := okset union {st[2][a]}:
+		fi:
+	od:
+
+	for p from 1 to parts do
+		if not( p in st[3] ) then
+			next:
+		fi:
+		
+		#if not(verif2(st,sy,p,okset))  then
+		#	return (false):
+		#fi:
+		
+		b1 := false:
+		b3 := false:
+		b4 := evalb(p in sy):
+		#if b4 and ( (st[4][p] = 1) and not(p in st[3])) then
+		#		return(false):
+		#fi:
+		for a from 1 to nops(st[3]) do
+			if st[3][a] = p then
+				if b1 then
+					if b3 then
+						return(false):
+					fi:
+					b4 := true:
+				else 
+					b1 := true:
+				fi:
+				if not( a in okset) then
+					if b4 then 
+						return(false):
+					fi:
+					b3 := true:
+				fi:
+			fi:
+		od:
+		
+	od:
+	true:
+end:
+
+transition_matrix := proc(n, parts)
+	local M,g,st,sy,i,j,idx,newst,o,x,w,v,i1,prev,y,p,c,s,newst2,newst3,newst4:
+	
+	g := gen_states(n, parts):
+	s := sym(n, parts):
+	
+	M:=Matrix(nops(g)+2,nops(g)+2):
+	
+	
+	
+	for i from 1 to nops(g) do
+		for j from 1 to nops(s) do
+			
+			st := g[i]:
+			sy := s[j]:
+			
+			if not(check_trans(n, parts, st, sy)) then
+				next:
+			fi:
+		
+			
+			newst2 := [1]:
+			newst4 := st[4]:
+			
+			for p from 1 to parts do
+				
+				if (newst4[p] = 0) and (p in sy) then
+					
+					newst4[p] := 1:
+				fi:
+			od:
+						
+			o := 1:
+			
+			for x from 2 to n do
+			
+				w := 0:
+					
+				if st[1][x] = sy[x] then
+				
+					v := st[2][x]:
+				
+					for i1 from 1 to x-1 do
+						
+						if st[2][i1] = v and  st[1][i1] = sy[i1] then 
+							
+							w := newst2[i1]:
+							
+							break:
+						fi:
+						
+					od:
+				fi:
+				
+				if sy[x] = sy[x-1] then
+					prev := newst2[x-1]:
+					
+					if (w = 0) or (w >= prev) then
+						newst2 := [op(newst2), prev]:
+					else 
+						newst2 := [op(newst2), w]:
+						for y from 1 to x-1 do
+							if newst2[y] = prev then
+								newst2[y] := w:
+							fi:
+						od:
+						if prev = o then
+							o := o-1:
+						fi:
+						
+					fi:
+					
+				else
+				
+					if w <> 0 then
+						newst2 := [op(newst2), w]:
+					else 
+						newst2 := [op(newst2), o+1]:
+						o := o + 1:
+					fi:
+				
+								
+				fi:
+				
+			od:
+			
+			newst3 := []:
+			for x from 1 to max(newst2) do
+				i1 := ListTools:-Search(x,newst2):
+				newst3 := [op(newst3), sy[i1]]:
+			od:
+			
+			idx := ListTools:-Search([sy,newst2,newst3,newst4],g):
+			if idx = 0 then
+				print([sy,newst2,newst3,newst4]):
+				print("hello",i,j):
+				print(st):
+			fi:
+			#print(idx):
+			M[i+2,idx+2] :=  M[i+2,idx+2] + weight(sy):	
+			
+		od:
+	od:
+	
+	
+	for i from 1 to nops(g) do
+		if start_state(n,g[i]) then
+			
+			M[1,i+2] := weight(g[i][1]):
+
+		fi:
+		if end_state(n,g[i]) then
+			
+			M[i+2,2] := 1:
+		fi:
+		
+	od:
+	
+	M:
+	
+end:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
